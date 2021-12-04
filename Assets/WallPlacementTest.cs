@@ -1,9 +1,10 @@
-using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DefaultNamespace;
 using UnityEngine;
 using UnityEngine.AI;
+using Debug = System.Diagnostics.Debug;
 
 public class WallPlacementTest : MonoBehaviour
 {
@@ -11,8 +12,8 @@ public class WallPlacementTest : MonoBehaviour
     public WallCheck insideBot;
 
     [SerializeField] private float radius;
-    [SerializeField] private float gridH;
-    [SerializeField] private float gridW;
+    [SerializeField] private float size;
+    [SerializeField] private Vector3 offset;
 
     [SerializeField] private GameObject objectFirst;
     
@@ -20,16 +21,18 @@ public class WallPlacementTest : MonoBehaviour
     [SerializeField] private List<Transform> bestTargets;
     [SerializeField] private float snapDistance;
     
-    [SerializeField] private new Camera camera;
+    [SerializeField] private Camera camera;
 
     private Transform _currentNode;
 
     private Ray _cameraRay;
     
+    private Quaternion _newRotation;
+    
     private void Update()
     {
         Move();
-        
+        Rotate();
         PlaceWall();
     }
 
@@ -41,10 +44,10 @@ public class WallPlacementTest : MonoBehaviour
         {
             return;
         }
+        
+        if (CurrentNodeInWall()) return;
 
         if (!Input.GetMouseButtonDown(0)) return;
-
-        if (CurrentNodeInWall()) return;
         
         var transform1 = transform;
         
@@ -52,12 +55,37 @@ public class WallPlacementTest : MonoBehaviour
         var rotation = _currentNode == default ? transform1.rotation : _currentNode.rotation;
         
         var newObj = Instantiate(objectFirst, position, rotation);
-
+        
         if (newObj is null) return;
 
         CheckStrays();
 
         objects.Add(newObj.transform);
+    }
+
+    private void Rotate()
+    {
+        if (!Input.GetMouseButtonDown(1)) return;
+
+        var y = 0;
+
+        var transform1 = transform;
+
+        switch (transform1.eulerAngles.y)
+        {
+            case 0:
+                y = 90;
+                offset.x = size / 2;
+                offset.z = size / 2;
+                break;
+            case 90:
+                y = 0;
+                offset.x = 0;
+                offset.z = 0;
+                break;
+        }
+
+        _newRotation = Quaternion.Euler(0, y, 0);
     }
 
     private void Move()
@@ -67,17 +95,14 @@ public class WallPlacementTest : MonoBehaviour
 
         ClosestTargets();
 
+        NodeInNode();
+
         if (!plane.Raycast(_cameraRay, out var enter)) return;
         
         var pos = _cameraRay.GetPoint(enter);
 
-        if (Math.Abs(transform.rotation.y - 90) < 0) gridW *= 2;
-
-        var snappedPos =
-             new Vector3(Mathf.Round(pos.x / gridH) * gridH, pos.y, Mathf.Round(pos.z / gridW) * gridW);
+        var snappedPos = GridSnappedPos(pos);
         
-        NodeInNode();
-
         _currentNode = default;
         
         if (Points() != default)
@@ -88,8 +113,23 @@ public class WallPlacementTest : MonoBehaviour
         var transform1 = transform;
         
         transform1.position = _currentNode == default ? snappedPos : _currentNode.position;
-        transform1.rotation = _currentNode == default ? new Quaternion(0, 0, 0, 0) : _currentNode.rotation;
+        transform1.rotation = _currentNode == default ? _newRotation : _currentNode.rotation;
 
+    }
+
+    private Vector3 GridSnappedPos(Vector3 pos)
+    {
+        var newPos = pos;
+
+        newPos -= offset;
+
+        var xCount = Mathf.RoundToInt(newPos.x / size);
+        var zCount = Mathf.RoundToInt(newPos.z / size);
+
+        var snappedPos = new Vector3(xCount * size, pos.y, zCount * size);
+
+        snappedPos += offset;
+        return snappedPos;
     }
 
     private void CheckStrays()
@@ -132,9 +172,9 @@ public class WallPlacementTest : MonoBehaviour
             var position = node.position;
 
             var results = new Collider[1];
-            var size = Physics.OverlapSphereNonAlloc(position, 0.4f, results);
+            var i = Physics.OverlapSphereNonAlloc(position, 0.4f, results);
 
-            for (var index = 0; index < size; index++)
+            for (var index = 0; index < i; index++)
             {
                 var hitCollider = results[index];
                 
@@ -155,9 +195,9 @@ public class WallPlacementTest : MonoBehaviour
 
         const int maxColliders = 4;
         var results = new Collider[maxColliders];
-        var size = Physics.OverlapSphereNonAlloc(position1, radius, results);
+        var i = Physics.OverlapSphereNonAlloc(position1, radius, results);
 
-        for (var index = 0; index < size; index++)
+        for (var index = 0; index < i; index++)
         {
             var hitCollider = results[index];
             
@@ -176,15 +216,32 @@ public class WallPlacementTest : MonoBehaviour
         return insideBot.path.status == NavMeshPathStatus.PathComplete &&
                bot.path.status == NavMeshPathStatus.PathComplete;
     }
+
+    private GameObject _currentWall;
     
     private bool CurrentNodeInWall()
     {
         if (_currentNode == default) return false;
-
+        
         var position = _currentNode.position;
-        var top = new Vector3(position.x, position.y + 5, position.z);
+        var top = new Vector3(position.x, position.y, position.z);
 
-        return Physics.Raycast(top, Vector3.down * 50, out var enter) && enter.collider.CompareTag($"Wall") && transform.position == _currentNode.transform.position;
+        const int maxColliders = 4;
+        var results = new Collider[maxColliders];
+        var i = Physics.OverlapSphereNonAlloc(top, 0.2f, results);
+
+        for (var index = 0; index < i; index++)
+        {
+            var hitCollider = results[index];
+
+            if (!hitCollider.transform.CompareTag($"Wall")) continue;
+
+            _currentWall = hitCollider.gameObject;
+
+            return _currentWall.transform.position == _currentNode.position;
+        }
+
+        return false;
     }
 
     private List<Transform> Points()
@@ -225,7 +282,7 @@ public class WallPlacementTest : MonoBehaviour
     {
         GUI.color = Color.black;
         
-        var n = _currentNode == default ? $"None" : $"{_currentNode.name}, {_currentNode.eulerAngles.y}";
+        var n = _currentNode == default ? $"None" : $"{_currentNode.name}, {_currentNode.eulerAngles.y}, {_currentWall.name} {_currentNode.transform.position == _currentWall.transform.position}";
 
         GUI.Label(new Rect(100, 50, 400, 50), n);
         
@@ -233,9 +290,6 @@ public class WallPlacementTest : MonoBehaviour
         
         if (bestTargets == default) return;
         
-        for (var i = 0; i < bestTargets.Count(); i++)
-        {
-            GUI.Label(new Rect(140 * i + 1, 0, 400, 50), bestTargets[i].name);
-        }
+        GUI.Label(new Rect(140, 0, 400, 50), bestTargets.Count.ToString());
     }
 }
