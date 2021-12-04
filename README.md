@@ -7,7 +7,7 @@ Rotate - LMB
 
 The grid size should be relative to the objects width (x).
 The offset is mostly for rotation, but it is half the grid size.
- Ex.
+
  ```
  > width = 10
  > size = 11
@@ -16,7 +16,8 @@ The offset is mostly for rotation, but it is half the grid size.
 
 The code is very messy, but you can look it over and see if there is anything you'd like to add to your own project.
 
-Ex.
+Inability to block area:
+
 ```
 |
 V
