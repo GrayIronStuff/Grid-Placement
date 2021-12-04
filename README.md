@@ -8,9 +8,11 @@ Rotate - LMB
 The grid size should be relative to the objects width (x).
 The offset is mostly for rotation, but it is half the grid size.
  Ex.
- > width = 10\n
- > size = 11\n
- > x and z offset = 11 / 2 = 5.5\n
+ ```
+ > width = 10
+ > size = 11
+ > x and z offset = 11 / 2 = 5.5
+ ```
 
 The code is very messy, but you can look it over and see if there is anything you'd like to add to your own project.
 
