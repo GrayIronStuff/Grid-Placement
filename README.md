@@ -3,10 +3,10 @@ Grid Placement
 A project that tests placing walls on a grid, automatic rotation, snapping, and the inability to block off any area.
 
 Ex.
+```
 |
 V
-
-``` 
+ 
 > iiiiii
 > i      <-- Has to be an opening
 > i    i
@@ -21,3 +21,4 @@ V
 >   ii
 > ^
 > Has to be an opening
+```
